@@ -17,6 +17,10 @@ set(PROJECT_SOURCES
         main.c
         utils.c
         utils.h
+        map-preprocess.c
+        map-preprocess.h
+        sampling.c
+        sampling.h
 )
 
 

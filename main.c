@@ -1,122 +1,128 @@
-//add main function
+#define _GNU_SOURCE
+#include <sched.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <bits/time.h>
 #include <mastik/l3.h>
-#include <mastik/impl.h>
-#include <mastik/util.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "utils.h"
-#define SETS_PER_SLICE 1024
+#include "map-preprocess.h"
 
-#define NUM_OF_GROUPS 1024
+#define INTERVAL_NORMALIZER 1000000 // 1 -> 1sec | 1000 -> 1ms | 1000000 -> microSec
+#define PROBE_TIME_SEC 5 // probe time in seconds
+#define INTERVAL_PROBE_MS 2 // the interval time in ms
+#define NUM_OF_SAMPLES 64
+#define NORMALIZED_INTERVAL (2600000000 / INTERVAL_NORMALIZER)
 
-void write_groupList_to_csv(void **groupList, int numGroups, int groupSize, const char *filename) {
-    FILE *file = fopen(filename, "w");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open file: %s\n", filename);
+void pin_to_core(int core_id) {
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    if (sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) != 0) {
+        perror("sched_setaffinity");
+    }
+}
+
+int open_website(const char* url) {
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork failed");
+        return 0;
+    }
+
+    if (pid == 0) {
+        setpgid(0, 0);
+        // Child process: open browser in incognito mode
+        pin_to_core(2);
+        execlp("google-chrome", "google-chrome",
+              "--new-window",
+              url, NULL);
+        perror("execlp failed"); // if execlp returns
         exit(EXIT_FAILURE);
     }
 
-    for (int row = 0; row < groupSize; row++) {
-        for (int col = 0; col < numGroups; col++) {
-            if (col > 0) {
-                fprintf(file, ",");
-            }
-            fprintf(file, "%p", ((void **)groupList[col])[row]);
-        }
-        fprintf(file, "\n");
-    }
-
-    fclose(file);
+    // Parent continues
+    return pid; // return child PID
 }
 
+void probe_group(const LinkedList *groupLinkedList, uint **sampleMatrix ,uint64_t Interval, int groupNum, int sampleNum) {
+    const uint64_t limit = rdtscp64() + Interval;
+    Node *current = groupLinkedList->head;
+    int counter = 0;
+    while (rdtscp64() < limit) {
+        current = current->next;
+        counter++;
+    }
+    sampleMatrix[groupNum][sampleNum] = counter;
+}
 
+void fill_matrix(SpatialInfo *si, uint **sampleMatrix) {
+    for (int sampleNum = 0; sampleNum < NUM_OF_SAMPLES; sampleNum++) {
+        for (int groupNum = 0; groupNum < si->numOfGroups; groupNum++) {
+            probe_group(si->groupLinkedList[groupNum], sampleMatrix, NORMALIZED_INTERVAL*50, groupNum, sampleNum);
+        }
+    }
+}
 
-
-void monitor_sets(l3pp_t l3, int groupSize, int groupNum, int numOfSlices) {
-    if (groupSize < numOfSlices) {
-        printf("Group size is too small, must be at least as the num of slices\n");
+void collect_data(SpatialInfo *si, uint **sampleMatrix, const char* url) {
+    char site_name[128];
+    parse_site_name(url, site_name, sizeof(site_name));
+    //print the site name
+    printf("Probing site: %s\n", site_name);
+    pid_t browser_pid = open_website(url);
+    if (browser_pid == 0) {
+        free2DArray(sampleMatrix);
         return;
     }
-    l3_unmonitorall(l3);
-    int groupPerSlice = groupSize / numOfSlices;
-    int baseSetNum = groupNum * groupPerSlice;
-    for (int sliceNum = 0; sliceNum < numOfSlices; sliceNum++) {
-        for (int i = 0; i < groupPerSlice; i++) {
-            int setIndex = baseSetNum + i + sliceNum*SETS_PER_SLICE;
-            l3_monitor(l3, setIndex);
-            // printf("Monitoring set %d in slice %d\n", setIndex, sliceNum);
-        }
-    }
-}
 
-void create_groups_list(l3pp_t l3, int groupSize, int subgroupSize, void** groupList, int associativity) {
-    for (int groupNum = 0; groupNum < NUM_OF_GROUPS; groupNum++) {
-        monitor_sets(l3, groupSize, groupNum, l3_getSlices(l3));
-        for (int j = 0; j < groupSize; j++ ) {
-            add_addresses_to_arr(getHead(l3, j),groupList[groupNum], j* subgroupSize* associativity);
-        }
-    }
-}
+    fill_matrix(si, sampleMatrix);
+    printf("Done.\n");
 
+    kill(-browser_pid, SIGKILL);
+    waitpid(browser_pid, NULL, 0);
+
+    // Write results to CSV
+    char csv_path[256];
+    snprintf(csv_path, sizeof(csv_path), "%s.csv", site_name);
+    write_matrix_to_csv(sampleMatrix, si->numOfGroups, NUM_OF_SAMPLES, csv_path);
+
+}
 
 int main(void) {
+    pin_to_core(0);
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    const char* urlWiki = "https://www.wikipedia.org";
+    const char* urlBBC = "https://www.bbc.com/";
+    SpatialInfo *si = (SpatialInfo *) malloc(sizeof(SpatialInfo));
+    LinkedList **groupLinkedList = (LinkedList **) calloc(NUM_OF_GROUPS, sizeof(LinkedList *));
 
-    delayloop(3000000000U);
-    l3info_t l3i = (l3info_t)malloc(sizeof(struct l3info));
-    printf("preparing...\n");
-    l3pp_t l3 = l3_prepare(l3i, NULL);
-    printf("Num of slices: %d\n", l3_getSlices(l3));
-    int setsGoal = l3_getSlices(l3) * SETS_PER_SLICE;
-    printf("Num of sets Goal: %d\n", setsGoal);
+    build_SpatialInfo(si, groupLinkedList);
+    create_groups_list(*si, groupLinkedList);
+    write_linkedList_to_csv(groupLinkedList, NUM_OF_GROUPS, "linked_list_output.csv");
 
-    while (l3_getSets(l3) != setsGoal) { // continue until all the cache is mapped
-        l3 = l3_prepare(l3i, NULL);
-    }
-    int associativity = l3_getAssociativity(l3);
+    uint **sampleMatrix = allocate2DArray(si->numOfGroups, NUM_OF_SAMPLES);
+    printf("collecting data...\n");
+    collect_data(si, sampleMatrix, urlWiki);
+    collect_data(si, sampleMatrix, urlBBC);
 
-    int groupSize = l3_getSets(l3) / NUM_OF_GROUPS;
-    int numOfSets = l3_getSets(l3);
-    int subgroupSize = groupSize / l3_getSlices(l3);
-    printf("Number of sets: %d, sub Size: %d\n", numOfSets, subgroupSize);
-    printf("%d Way cache\n", associativity);
-    void **groupList = (void**) calloc(NUM_OF_GROUPS, sizeof(void*)); //allocate array of pointers of groups
 
-    // Allocate memory for each cell in groupList
+
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    // Calculate elapsed time in seconds and nanoseconds
+    double elapsed_time = (end.tv_sec - start.tv_sec) +
+                          (end.tv_nsec - start.tv_nsec) / 1e9;
+    printf("Execution time: %.9f seconds\n", elapsed_time);
     for (int i = 0; i < NUM_OF_GROUPS; i++) {
-        groupList[i] = (void *)calloc(groupSize * associativity, sizeof(void *));
-        if (groupList[i] == NULL) {
-            fprintf(stderr, "Memory allocation failed for groupList[%d]\n", i);
-            exit(EXIT_FAILURE);
+        if (groupLinkedList[i] != NULL) {
+            free_linked_list(groupLinkedList[i]);
+            groupLinkedList[i] = NULL; // Avoid double free
         }
     }
-
-    create_groups_list(l3, groupSize, subgroupSize, groupList, associativity);
-
-    write_groupList_to_csv(groupList, NUM_OF_GROUPS, groupSize * associativity, "output.csv");
-    // l3_monitor(l3, 0);
-    // l3_monitor(l3, 1024);
-
-    // traverse_and_print(getHead(l3, 0));
-    //
-    // traverse_and_print(getHead(l3, 1));
-    // printf("monitoring...\n");
-    // monitor_sets(&l3, 24, 0, l3_getSlices(l3));
-    // printf("\n");
-    // monitor_sets(&l3, 24, 1, l3_getSlices(l3));
-    // printf("\n");
-    // monitor_sets(&l3, 24, 2, l3_getSlices(l3));
-
-    for (int i = 0; i < NUM_OF_GROUPS; i++) {
-        if (groupList[i] != NULL) {
-            free(groupList[i]);
-            groupList[i] = NULL; // Avoid double free
-        }
-    }
-    free(groupList);
-    free(l3i);
-    l3_release(l3);
+    free(groupLinkedList);
+    l3_release(si->l3);
+    // free2DArray(sampleMatrix);
     return 0;
 }

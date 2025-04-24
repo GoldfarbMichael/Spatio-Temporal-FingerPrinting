@@ -207,6 +207,20 @@ build CMakeFiles/Spatio_Temporal_FingerPrinting.dir/utils.c.o: C_COMPILER__Spati
   OBJECT_DIR = CMakeFiles/Spatio_Temporal_FingerPrinting.dir
   OBJECT_FILE_DIR = CMakeFiles/Spatio_Temporal_FingerPrinting.dir
 
+build CMakeFiles/Spatio_Temporal_FingerPrinting.dir/map-preprocess.c.o: C_COMPILER__Spatio_Temporal_FingerPrinting_unscanned_Debug /home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/map-preprocess.c || cmake_object_order_depends_target_Spatio_Temporal_FingerPrinting
+  DEP_FILE = CMakeFiles/Spatio_Temporal_FingerPrinting.dir/map-preprocess.c.o.d
+  FLAGS = -g -std=gnu2x -fdiagnostics-color=always
+  INCLUDES = -I/home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/Mastik-main/mastik
+  OBJECT_DIR = CMakeFiles/Spatio_Temporal_FingerPrinting.dir
+  OBJECT_FILE_DIR = CMakeFiles/Spatio_Temporal_FingerPrinting.dir
+
+build CMakeFiles/Spatio_Temporal_FingerPrinting.dir/sampling.c.o: C_COMPILER__Spatio_Temporal_FingerPrinting_unscanned_Debug /home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/sampling.c || cmake_object_order_depends_target_Spatio_Temporal_FingerPrinting
+  DEP_FILE = CMakeFiles/Spatio_Temporal_FingerPrinting.dir/sampling.c.o.d
+  FLAGS = -g -std=gnu2x -fdiagnostics-color=always
+  INCLUDES = -I/home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/Mastik-main/mastik
+  OBJECT_DIR = CMakeFiles/Spatio_Temporal_FingerPrinting.dir
+  OBJECT_FILE_DIR = CMakeFiles/Spatio_Temporal_FingerPrinting.dir
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target Spatio_Temporal_FingerPrinting
@@ -215,7 +229,7 @@ build CMakeFiles/Spatio_Temporal_FingerPrinting.dir/utils.c.o: C_COMPILER__Spati
 #############################################
 # Link the executable Spatio_Temporal_FingerPrinting
 
-build Spatio_Temporal_FingerPrinting: C_EXECUTABLE_LINKER__Spatio_Temporal_FingerPrinting_Debug CMakeFiles/Spatio_Temporal_FingerPrinting.dir/main.c.o CMakeFiles/Spatio_Temporal_FingerPrinting.dir/utils.c.o | /home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/Mastik-main/src/libmastik.a
+build Spatio_Temporal_FingerPrinting: C_EXECUTABLE_LINKER__Spatio_Temporal_FingerPrinting_Debug CMakeFiles/Spatio_Temporal_FingerPrinting.dir/main.c.o CMakeFiles/Spatio_Temporal_FingerPrinting.dir/utils.c.o CMakeFiles/Spatio_Temporal_FingerPrinting.dir/map-preprocess.c.o CMakeFiles/Spatio_Temporal_FingerPrinting.dir/sampling.c.o | /home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/Mastik-main/src/libmastik.a
   FLAGS = -g
   LINK_LIBRARIES = /home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/Mastik-main/src/libmastik.a
   OBJECT_DIR = CMakeFiles/Spatio_Temporal_FingerPrinting.dir
