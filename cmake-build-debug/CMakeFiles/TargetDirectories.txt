@@ -1,0 +1,4 @@
+/home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/cmake-build-debug/CMakeFiles/mastik.dir
+/home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/cmake-build-debug/CMakeFiles/Spatio_Temporal_FingerPrinting.dir
+/home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/michael/CLionProjects/Spatio-Temporal-FingerPrinting/cmake-build-debug/CMakeFiles/rebuild_cache.dir
