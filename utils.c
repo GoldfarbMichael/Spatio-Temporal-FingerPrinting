@@ -217,3 +217,27 @@ void log_timings(char *csv_path, const uint64_t start_time, const uint64_t end_t
 
 }
 
+
+uint64_t read_config_long(const char* path, const char* key) {
+    FILE *file = fopen(path, "r");
+    if (!file) {
+        fprintf(stderr, "Config file not found: %s\n", path);
+        return 0; //default value
+    }
+
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        char k[128];
+        uint64_t v;
+        if (sscanf(line, "%127[^=]=%lu", k, &v) == 2) {
+            if (strcmp(k, key) == 0) {
+                fclose(file);
+                return v;
+            }
+        }
+    }
+
+    fclose(file);
+    return 0; //default value
+}
+

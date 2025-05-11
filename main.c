@@ -9,10 +9,7 @@
 #include "utils.h"
 #include "map-preprocess.h"
 
-#define INTERVAL_NORMALIZER 1000000 // 1 -> 1sec | 1000 -> 1ms | 1000000 -> microSec
-#define PROBE_TIME_SEC 5 // probe time in seconds
-#define INTERVAL_PROBE_MS 2 // the interval time in ms
-#define NUM_OF_SAMPLES 512
+#define CLOCK_NORMALIZER 1000000 // 1 -> 1sec | 1000 -> 1ms | 1000000 -> microSec
 #define NORMALIZED_INTERVAL (2600000000 / INTERVAL_NORMALIZER)
 
 void pin_to_core(int core_id) {
@@ -36,33 +33,42 @@ void probe_group(const LinkedList *groupLinkedList, uint **sampleMatrix ,uint64_
     sampleMatrix[groupNum][sampleNum] = counter;
 }
 
-void fill_matrix(SpatialInfo *si, uint **sampleMatrix) {
-    for (int sampleNum = 0; sampleNum < NUM_OF_SAMPLES; sampleNum++) {
+void fill_matrix(SpatialInfo *si, uint **sampleMatrix, const int numSamples, const uint64_t samplingInterval) {
+    for (int sampleNum = 0; sampleNum < numSamples; sampleNum++) {
         for (int groupNum = 0; groupNum < si->numOfGroups; groupNum++) {
-            probe_group(si->groupLinkedList[groupNum], sampleMatrix, NORMALIZED_INTERVAL*500, groupNum, sampleNum);
+            probe_group(si->groupLinkedList[groupNum], sampleMatrix, samplingInterval, groupNum, sampleNum);
         }
     }
 }
 
-void collect_data(SpatialInfo *si, uint **sampleMatrix, char* site_name,int roundNum) {
+void collect_data(SpatialInfo *si, uint **sampleMatrix, char* site_name, const int numOfSamples, const int roundNum, const uint64_t samplingInterval) {
 
     printf("Probing site: %s At: %lu\n", site_name, rdtscp64());
-    fill_matrix(si, sampleMatrix);
+    fill_matrix(si, sampleMatrix, numOfSamples, samplingInterval);
     // Write results to CSV
     char csv_path[256];
     snprintf(csv_path, sizeof(csv_path), "%s%d.csv", site_name, roundNum);
-    write_matrix_to_csv(sampleMatrix, si->numOfGroups, NUM_OF_SAMPLES, csv_path);
+    write_matrix_to_csv(sampleMatrix, si->numOfGroups, numOfSamples, csv_path);
 
 }
 
 int main(int argc, char *argv[]) {
     uint64_t start_rd = rdtscp64();
-    if (argc != 3) {
+    if (argc != 4) {
         fprintf(stderr, "Usage: %s <url> <round_number>\n", argv[0]);
         return 1;
     }
-    char *url = argv[1];
+    const char *url = argv[1];
     int round = atoi(argv[2]);
+    const char *config_path = argv[3];
+
+    const uint64_t CLOCK_SPEED = read_config_long(config_path, "CLOCK_SPEED");
+    const int SETS_PER_SLICE = read_config_int(config_path, "SETS_PER_SLICE");
+    const int NUM_OF_GROUPS = read_config_int(config_path, "NUM_OF_GROUPS");
+    const int NUM_OF_SAMPLES = read_config_int(config_path, "NUM_OF_SAMPLES");
+    const int SAMPLE_TIME_IN_us = read_config_int(config_path, "SAMPLE_TIME_IN_us"); //time of the sampling in Micro seconds!
+    const uint64_t interval = (CLOCK_SPEED/CLOCK_NORMALIZER)*SAMPLE_TIME_IN_us; //(micro seconds in cycles)*time in micro seconds
+
     char site_name[128];
     parse_site_name(url, site_name, sizeof(site_name));
     uint64_t next_sync = ((start_rd / 10000000000LLU) + 1) * 10000000000LLU;
@@ -77,14 +83,13 @@ int main(int argc, char *argv[]) {
     SpatialInfo *si = (SpatialInfo *) malloc(sizeof(SpatialInfo));
     LinkedList **groupLinkedList = (LinkedList **) calloc(NUM_OF_GROUPS, sizeof(LinkedList *));
 
-    build_SpatialInfo(si, groupLinkedList);
-    create_groups_list(*si, groupLinkedList);
-    // write_linkedList_to_csv(groupLinkedList, NUM_OF_GROUPS, "linked_list_output.csv");
+    build_SpatialInfo(si, groupLinkedList, SETS_PER_SLICE, NUM_OF_GROUPS);
+    create_groups_list(*si, groupLinkedList, NUM_OF_GROUPS, SETS_PER_SLICE);
 
     uint **sampleMatrix = allocate2DArray(si->numOfGroups, NUM_OF_SAMPLES);
     printf("collecting data...\n");
 
-    collect_data(si, sampleMatrix, site_name,round);
+    collect_data(si, sampleMatrix, site_name, NUM_OF_SAMPLES, round, interval);
 
 
     clock_gettime(CLOCK_MONOTONIC, &end);
@@ -100,7 +105,5 @@ int main(int argc, char *argv[]) {
     }
     free(groupLinkedList);
     l3_release(si->l3);
-    uint64_t end_rd = rdtscp64();
-    log_timings("sampling_time.csv", start_rd, end_rd);
     return 0;
 }
