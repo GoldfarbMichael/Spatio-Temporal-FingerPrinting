@@ -78,3 +78,31 @@ void create_groups_list(SpatialInfo si, LinkedList **linkedList) {
         }
     }
 }
+
+
+void log_prepare_time(char *csv_path) {
+    uint64_t start_time = rdtscp64();
+    delayloop(3000000000U);
+    l3info_t l3i = (l3info_t)malloc(sizeof(struct l3info));
+    printf("preparing...\n");
+    l3pp_t l3 = l3_prepare(l3i, nullptr);
+    printf("Num of slices: %d\n", l3_getSlices(l3));
+    int setsGoal = l3_getSlices(l3) * SETS_PER_SLICE;
+    printf("Num of sets Goal: %d\n", setsGoal);
+
+    while (l3_getSets(l3) != setsGoal) { // continue until all the cache is mapped
+        l3 = l3_prepare(l3i, nullptr);
+    }
+    uint64_t end_time = rdtscp64();
+    free(l3i);
+    l3_release(l3);
+
+    uint64_t elapsed_time = end_time - start_time;
+    //append the elapsed time to the CSV file
+    FILE *file = fopen(csv_path, "a");
+    if (file == NULL) {
+        fprintf(stderr, "Error opening file: %s\n", csv_path);
+        return;
+    }
+    fprintf(file, "%lu\n", elapsed_time);
+}

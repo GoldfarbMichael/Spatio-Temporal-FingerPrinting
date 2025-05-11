@@ -203,3 +203,17 @@ void parse_site_name(const char* url, char* site_name, size_t size) {
     strncpy(site_name, www_ptr, length);
     site_name[length] = '\0'; // Null-terminate the string
 }
+
+void log_timings(char *csv_path, const uint64_t start_time, const uint64_t end_time) {
+
+    uint64_t duration = end_time - start_time;
+    //append the elapsed time to the CSV file
+    FILE *file = fopen(csv_path, "a");
+    if (file == NULL) {
+        fprintf(stderr, "Error opening file: %s\n", csv_path);
+        return;
+    }
+    fprintf(file, "%lu\n", duration);
+
+}
+

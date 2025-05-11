@@ -1,5 +1,6 @@
 #ifndef UTILS_H
 #define UTILS_H
+#include <stdint.h>
 #include <stdlib.h>
 
 // Node struct for the linked list
@@ -52,4 +53,5 @@ void free2DArray(u_int **array);
 void write_linkedList_to_csv(LinkedList **groupLinkedList, int numGroups, const char *filename);
 void write_matrix_to_csv(unsigned int **matrix, size_t rows, size_t cols, const char *filename);
 void parse_site_name(const char* url, char* site_name, size_t size);
+void log_timings(char *csv_path, const uint64_t start_time, const uint64_t end_time);
 #endif //UTILS_H
